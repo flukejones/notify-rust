@@ -2,6 +2,8 @@
 
 ## [Unreleased](https://github.com/hoodie/notify-rust/compare/v4.5.10...HEAD) (2022-12-03)
 
+* Update to zbus 4.0.1. Remove dbus junk
+
 ### Features
 
 * update zbus dependency to 3.x

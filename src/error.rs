@@ -22,9 +22,6 @@ pub enum ErrorKind {
     /// only here for backwards compatibility
     Msg(String),
 
-    #[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-    Dbus(dbus::Error),
-
     #[cfg(all(feature = "zbus", unix, not(target_os = "macos")))]
     Zbus(zbus::Error),
 
@@ -49,9 +46,6 @@ pub enum ErrorKind {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
-            #[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-            ErrorKind::Dbus(ref e) => write!(f, "{}", e),
-
             #[cfg(all(feature = "zbus", unix, not(target_os = "macos")))]
             ErrorKind::Zbus(ref e) => write!(f, "{}", e),
 
@@ -80,15 +74,6 @@ impl From<&str> for Error {
     fn from(e: &str) -> Error {
         Error {
             kind: ErrorKind::Msg(e.into()),
-        }
-    }
-}
-
-#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-impl From<dbus::Error> for Error {
-    fn from(e: dbus::Error) -> Error {
-        Error {
-            kind: ErrorKind::Dbus(e),
         }
     }
 }

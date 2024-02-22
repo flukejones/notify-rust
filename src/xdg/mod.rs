@@ -2,15 +2,10 @@
 //!
 //! it should not be available under any platform other than `(unix, not(target_os = "macos"))`
 
-#[cfg(feature = "dbus")]
-use dbus::ffidisp::Connection as DbusConnection;
-
 use crate::{error::*, notification::Notification};
 
 use std::ops::{Deref, DerefMut};
 
-#[cfg(feature = "dbus")]
-mod dbus_rs;
 #[cfg(feature = "zbus")]
 mod zbus_rs;
 
@@ -26,9 +21,6 @@ pub static NOTIFICATION_OBJECTPATH: &str = "/de/hoodie/Notifications";
 
 #[derive(Debug)]
 enum NotificationHandleInner {
-    #[cfg(feature = "dbus")]
-    Dbus(dbus_rs::DbusNotificationHandle),
-
     #[cfg(feature = "zbus")]
     Zbus(zbus_rs::ZbusNotificationHandle),
 }
@@ -43,17 +35,6 @@ pub struct NotificationHandle {
 
 #[allow(dead_code)]
 impl NotificationHandle {
-    #[cfg(feature = "dbus")]
-    pub(crate) fn for_dbus(
-        id: u32,
-        connection: DbusConnection,
-        notification: Notification,
-    ) -> NotificationHandle {
-        NotificationHandle {
-            inner: dbus_rs::DbusNotificationHandle::new(id, connection, notification).into(),
-        }
-    }
-
     #[cfg(feature = "zbus")]
     pub(crate) fn for_zbus(
         id: u32,
@@ -72,21 +53,15 @@ impl NotificationHandle {
         F: FnOnce(&str),
     {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(inner) => {
-                inner.wait_for_action(|action: &ActionResponse| match action {
-                    ActionResponse::Custom(action) => invocation_closure(action),
-                    ActionResponse::Closed(_reason) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
-                })
-            }
-
             #[cfg(feature = "zbus")]
-            NotificationHandleInner::Zbus(inner) => inner
-                .wait_for_action(|action: &ActionResponse| match action {
-                    ActionResponse::Custom(action) => invocation_closure(action),
-                    ActionResponse::Closed(_reason) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
-                })
-                .ok(), // TODO: pass error to caller
+            NotificationHandleInner::Zbus(inner) => {
+                inner
+                    .wait_for_action(|action: &ActionResponse| match action {
+                        ActionResponse::Custom(action) => invocation_closure(action),
+                        ActionResponse::Closed(_reason) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
+                    })
+                    .ok();
+            } // TODO: pass error to caller
         };
     }
 
@@ -109,8 +84,6 @@ impl NotificationHandle {
     /// ```
     pub fn close(self) {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(inner) => inner.close(),
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(inner) => {
                 // TODO: handle error
@@ -146,22 +119,16 @@ impl NotificationHandle {
     /// ```
     pub fn on_close<A>(self, handler: impl CloseHandler<A>) {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(inner) => {
-                inner.wait_for_action(|action: &ActionResponse| {
-                    if let ActionResponse::Closed(reason) = action {
-                        handler.call(*reason);
-                    }
-                })
-            }
             #[cfg(feature = "zbus")]
-            NotificationHandleInner::Zbus(inner) => inner
-                .wait_for_action(|action: &ActionResponse| {
-                    if let ActionResponse::Closed(reason) = action {
-                        handler.call(*reason);
-                    }
-                })
-                .ok(), // TODO: pass error to caller
+            NotificationHandleInner::Zbus(inner) => {
+                inner
+                    .wait_for_action(|action: &ActionResponse| {
+                        if let ActionResponse::Closed(reason) = action {
+                            handler.call(*reason);
+                        }
+                    })
+                    .ok();
+            } // TODO: pass error to caller
         };
     }
 
@@ -187,8 +154,6 @@ impl NotificationHandle {
     /// been tested by the developer.
     pub fn update(&mut self) {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(ref mut inner) => inner.update(),
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(ref mut inner) => {
                 // TODO: handle error
@@ -200,8 +165,6 @@ impl NotificationHandle {
     /// Returns the Handle's id.
     pub fn id(&self) -> u32 {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(ref inner) => inner.id,
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(ref inner) => inner.id,
         }
@@ -214,8 +177,6 @@ impl Deref for NotificationHandle {
 
     fn deref(&self) -> &Notification {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(ref inner) => &inner.notification,
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(ref inner) => &inner.notification,
         }
@@ -226,18 +187,9 @@ impl Deref for NotificationHandle {
 impl DerefMut for NotificationHandle {
     fn deref_mut(&mut self) -> &mut Notification {
         match self.inner {
-            #[cfg(feature = "dbus")]
-            NotificationHandleInner::Dbus(ref mut inner) => &mut inner.notification,
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(ref mut inner) => &mut inner.notification,
         }
-    }
-}
-
-#[cfg(feature = "dbus")]
-impl From<dbus_rs::DbusNotificationHandle> for NotificationHandleInner {
-    fn from(handle: dbus_rs::DbusNotificationHandle) -> NotificationHandleInner {
-        NotificationHandleInner::Dbus(handle)
     }
 }
 
@@ -245,15 +197,6 @@ impl From<dbus_rs::DbusNotificationHandle> for NotificationHandleInner {
 impl From<zbus_rs::ZbusNotificationHandle> for NotificationHandleInner {
     fn from(handle: zbus_rs::ZbusNotificationHandle) -> NotificationHandleInner {
         NotificationHandleInner::Zbus(handle)
-    }
-}
-
-#[cfg(feature = "dbus")]
-impl From<dbus_rs::DbusNotificationHandle> for NotificationHandle {
-    fn from(handle: dbus_rs::DbusNotificationHandle) -> NotificationHandle {
-        NotificationHandle {
-            inner: handle.into(),
-        }
     }
 }
 
@@ -268,76 +211,15 @@ impl From<zbus_rs::ZbusNotificationHandle> for NotificationHandle {
 
 // here be public functions
 
-#[cfg(all(
-    not(any(feature = "dbus", feature = "zbus")),
-    unix,
-    not(target_os = "macos")
-))]
-compile_error!("you have to build with eiter zbus or dbus turned on");
-
-/// Which Dbus implementation are we using?
-#[derive(Copy, Clone, Debug)]
-pub enum DbusStack {
-    /// using [dbus-rs](https://docs.rs/dbus-rs)
-    Dbus,
-    /// using [zbus](https://docs.rs/zbus)
-    Zbus,
-}
-
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-const DBUS_SWITCH_VAR: &str = "DBUSRS";
-
-#[cfg(all(feature = "zbus", not(feature = "dbus")))]
+#[cfg(feature = "zbus")]
 pub(crate) fn show_notification(notification: &Notification) -> Result<NotificationHandle> {
     zbus_rs::connect_and_send_notification(notification).map(Into::into)
-}
-
-#[cfg(all(feature = "dbus", not(feature = "zbus")))]
-pub(crate) fn show_notification(notification: &Notification) -> Result<NotificationHandle> {
-    dbus_rs::connect_and_send_notification(notification).map(Into::into)
-}
-
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-pub(crate) fn show_notification(notification: &Notification) -> Result<NotificationHandle> {
-    if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        dbus_rs::connect_and_send_notification(notification).map(Into::into)
-    } else {
-        zbus_rs::connect_and_send_notification(notification).map(Into::into)
-    }
-}
-
-/// Get the currently dsed [`DbusStack`]
-///
-/// (zbus only)
-#[cfg(all(feature = "zbus", not(feature = "dbus")))]
-pub fn dbus_stack() -> Option<DbusStack> {
-    Some(DbusStack::Zbus)
-}
-
-/// Get the currently dsed [`DbusStack`]
-///
-/// (dbus-rs only)
-#[cfg(all(feature = "dbus", not(feature = "zbus")))]
-pub fn dbus_stack() -> Option<DbusStack> {
-    Some(DbusStack::Dbus)
-}
-
-/// Get the currently dsed [`DbusStack`]
-///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-pub fn dbus_stack() -> Option<DbusStack> {
-    Some(if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        DbusStack::Dbus
-    } else {
-        DbusStack::Zbus
-    })
 }
 
 /// Get the currently dsed [`DbusStack`]
 ///
 /// neither zbus nor dbus-rs are configured
-#[cfg(all(not(feature = "dbus"), not(feature = "zbus")))]
+#[cfg(not(feature = "zbus"))]
 pub fn dbus_stack() -> Option<DbusStack> {
     None
 }
@@ -345,29 +227,9 @@ pub fn dbus_stack() -> Option<DbusStack> {
 /// Get list of all capabilities of the running notification server.
 ///
 /// (zbus only)
-#[cfg(all(feature = "zbus", not(feature = "dbus")))]
+#[cfg(feature = "zbus")]
 pub fn get_capabilities() -> Result<Vec<String>> {
     zbus_rs::get_capabilities()
-}
-
-/// Get list of all capabilities of the running notification server.
-///
-/// (dbus-rs only)
-#[cfg(all(feature = "dbus", not(feature = "zbus")))]
-pub fn get_capabilities() -> Result<Vec<String>> {
-    dbus_rs::get_capabilities()
-}
-
-/// Get list of all capabilities of the running notification server.
-///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-pub fn get_capabilities() -> Result<Vec<String>> {
-    if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        dbus_rs::get_capabilities()
-    } else {
-        zbus_rs::get_capabilities()
-    }
 }
 
 /// Returns a struct containing `ServerInformation`.
@@ -376,35 +238,9 @@ pub fn get_capabilities() -> Result<Vec<String>> {
 /// running.
 ///
 /// (zbus only)
-#[cfg(all(feature = "zbus", not(feature = "dbus")))]
+#[cfg(feature = "zbus")]
 pub fn get_server_information() -> Result<ServerInformation> {
     zbus_rs::get_server_information()
-}
-
-/// Returns a struct containing `ServerInformation`.
-///
-/// This struct contains `name`, `vendor`, `version` and `spec_version` of the notification server
-/// running.
-///
-/// (dbus-rs only)
-#[cfg(all(feature = "dbus", not(feature = "zbus")))]
-pub fn get_server_information() -> Result<ServerInformation> {
-    dbus_rs::get_server_information()
-}
-
-/// Returns a struct containing `ServerInformation`.
-///
-/// This struct contains `name`, `vendor`, `version` and `spec_version` of the notification server
-/// running.
-///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-pub fn get_server_information() -> Result<ServerInformation> {
-    if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        dbus_rs::get_server_information()
-    } else {
-        zbus_rs::get_server_information()
-    }
 }
 
 /// Return value of `get_server_information()`.
@@ -427,53 +263,7 @@ pub struct ServerInformation {
 /// stops the notification server
 #[cfg(all(feature = "server", unix, not(target_os = "macos")))]
 #[doc(hidden)]
-pub fn stop_server() {
-    #[cfg(feature = "dbus")]
-    dbus_rs::stop_server()
-}
-
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
-///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
-/// (xdg only)
-#[cfg(all(feature = "zbus", not(feature = "dbus")))]
-// #[deprecated(note="please use [`NotificationHandle::wait_for_action`]")]
-pub fn handle_action<F>(id: u32, func: F) -> Result<()>
-where
-    F: FnOnce(&ActionResponse),
-{
-    zbus_rs::handle_action(id, func)
-}
-
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
-///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
-/// (xdg only)
-#[cfg(all(feature = "dbus", not(feature = "zbus")))]
-// #[deprecated(note="please use `NotificationHandle::wait_for_action`")]
-pub fn handle_action<F>(id: u32, func: F)
-where
-    F: FnOnce(&ActionResponse),
-{
-    dbus_rs::handle_action(id, func);
-}
-
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
-///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
-#[cfg(all(feature = "dbus", feature = "zbus"))]
-// #[deprecated(note="please use `NotificationHandle::wait_for_action`")]
-pub fn handle_action<F>(id: u32, func: F)
-where
-    F: FnOnce(&ActionResponse),
-{
-    if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        dbus_rs::handle_action(id, func)
-    } else {
-        zbus_rs::handle_action(id, func)
-    }
-}
+pub fn stop_server() {}
 
 /// Reased passed to `NotificationClosed` Signal
 ///

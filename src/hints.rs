@@ -6,7 +6,7 @@ use zbus::zvariant;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub(crate) mod message;
 
-#[cfg(all(feature = "images", any(feature = "dbus", feature = "zbus"), unix, not(target_os = "macos")))]
+#[cfg(all(feature = "images", feature = "zbus", unix, not(target_os = "macos")))]
 use crate::image::Image;
 
 #[cfg(all(feature = "images", feature = "zbus", unix, not(target_os = "macos")))]
@@ -205,41 +205,6 @@ impl<'a> From<&'a Hint> for (&'a str, zvariant::Value<'a>) {
             Hint::Custom(key, val)         => (key.as_str()   , zvariant::Value::Str(val.as_str().into())),
             Hint::CustomInt(key, val)      => (key.as_str()   , zvariant::Value::I32(*val)),
             Hint::Invalid                  => (INVALID        , zvariant::Value::Str(INVALID.into()))
-        }
-    }
-}
-
-
-#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-impl<'a, A: dbus::arg::RefArg> From<(&'a String, &'a A)> for Hint {
-    fn from(pair: (&String, &A)) -> Self {
-
-        let (key, variant) = pair;
-        match (key.as_ref(), variant.as_u64(), variant.as_i64(), variant.as_str().map(String::from)) {
-
-            (constants::ACTION_ICONS,   Some(1),  _,       _          ) => Hint::ActionIcons(true),
-            (constants::ACTION_ICONS,   _,        _,       _          ) => Hint::ActionIcons(false),
-            (constants::URGENCY,        level,    _,       _          ) => Hint::Urgency(level.into()),
-            (constants::CATEGORY,       _,        _,       Some(name) ) => Hint::Category(name),
-
-            (constants::DESKTOP_ENTRY,  _,        _,       Some(entry)) => Hint::DesktopEntry(entry),
-            (constants::IMAGE_PATH,     _,        _,       Some(path) ) => Hint::ImagePath(path),
-            (constants::RESIDENT,       Some(1),  _,       _          ) => Hint::Resident(true),
-            (constants::RESIDENT,       _,        _,       _          ) => Hint::Resident(false),
-
-            (constants::SOUND_FILE,     _,        _,       Some(path) ) => Hint::SoundFile(path),
-            (constants::SOUND_NAME,     _,        _,       Some(name) ) => Hint::SoundName(name),
-            (constants::SUPPRESS_SOUND, Some(1),  _,       _          ) => Hint::SuppressSound(true),
-            (constants::SUPPRESS_SOUND, _,        _,       _          ) => Hint::SuppressSound(false),
-            (constants::TRANSIENT,      Some(1),  _,       _          ) => Hint::Transient(true),
-            (constants::TRANSIENT,      _,        _,       _          ) => Hint::Transient(false),
-            (constants::X,              _,        Some(x), _          ) => Hint::X(x as i32),
-            (constants::Y,              _,        Some(y), _          ) => Hint::Y(y as i32),
-
-            other => {
-                eprintln!("Invalid Hint {:#?} ", other);
-                Hint::Invalid
-            }
         }
     }
 }

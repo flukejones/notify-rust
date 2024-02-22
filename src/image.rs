@@ -1,5 +1,3 @@
-#[cfg(feature = "dbus")]
-use dbus::arg::messageitem::{MessageItem, MessageItemArray};
 pub use image::DynamicImage;
 
 use std::cmp::Ordering;
@@ -165,16 +163,6 @@ impl fmt::Display for ImageError {
 }
 
 /// matching image data key for each spec version
-#[cfg(feature = "dbus")]
-pub(crate) fn image_spec(version: Version) -> String {
-    match version.cmp(&Version::new(1, 1)) {
-        Ordering::Less => constants::IMAGE_DATA_1_0.to_owned(),
-        Ordering::Equal => constants::IMAGE_DATA_1_1.to_owned(),
-        Ordering::Greater => constants::IMAGE_DATA.to_owned(),
-    }
-}
-
-/// matching image data key for each spec version
 #[cfg(feature = "zbus")]
 pub(crate) fn image_spec_str(version: Version) -> &'static str {
     match version.cmp(&Version::new(1, 1)) {
@@ -184,46 +172,8 @@ pub(crate) fn image_spec_str(version: Version) -> &'static str {
     }
 }
 
-#[cfg(feature = "dbus")]
-pub struct ImageMessage(Image);
-
-#[cfg(feature = "dbus")]
-impl From<Image> for ImageMessage {
-    fn from(hint: Image) -> Self {
-        ImageMessage(hint)
-    }
-}
-
 impl From<image::ImageError> for ImageError {
     fn from(image_error: image::ImageError) -> Self {
         ImageError::CantOpen(image_error)
-    }
-}
-
-#[cfg(feature = "dbus")]
-impl std::ops::Deref for ImageMessage {
-    type Target = Image;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-#[cfg(feature = "dbus")]
-impl From<ImageMessage> for MessageItem {
-    fn from(img_msg: ImageMessage) -> Self {
-        let img = img_msg.0;
-
-        let bytes = img.data.into_iter().map(MessageItem::Byte).collect();
-
-        MessageItem::Struct(vec![
-            MessageItem::Int32(img.width),
-            MessageItem::Int32(img.height),
-            MessageItem::Int32(img.rowstride),
-            MessageItem::Bool(img.alpha),
-            MessageItem::Int32(img.bits_per_sample),
-            MessageItem::Int32(img.channels),
-            MessageItem::Array(MessageItemArray::new(bytes, "ay".into()).unwrap()),
-        ])
     }
 }

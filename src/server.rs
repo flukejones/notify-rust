@@ -12,14 +12,6 @@ use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "dbus")]
-use dbus::{
-    arg::{self, RefArg},
-    ffidisp::{BusType, Connection, NameFlag},
-    tree::{self, Factory, Interface, MTFn, MTSync, Tree},
-    Path,
-};
-
 use super::{Hint, Notification, Timeout};
 use crate::xdg::{NOTIFICATION_NAMESPACE, NOTIFICATION_OBJECTPATH};
 

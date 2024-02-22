@@ -14,7 +14,7 @@ pub enum Timeout {
 }
 
 impl Timeout {
-    #[cfg(all(feature = "zbus", not(feature = "dbus")))]
+    #[cfg(feature = "zbus")]
     #[cfg(all(unix, not(target_os = "macos")))]
     pub(crate) fn into_i32(self) -> i32 {
         self.into()
@@ -68,17 +68,5 @@ impl std::ops::Deref for TimeoutMessage {
 
     fn deref(&self) -> &Self::Target {
         &self.0
-    }
-}
-
-#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-use dbus::arg::messageitem::MessageItem;
-
-#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-impl std::convert::TryFrom<&MessageItem> for TimeoutMessage {
-    type Error = ();
-
-    fn try_from(mi: &MessageItem) -> Result<TimeoutMessage, ()> {
-        mi.inner::<i32>().map(|i| TimeoutMessage(i.into()))
     }
 }

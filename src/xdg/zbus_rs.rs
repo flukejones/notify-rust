@@ -80,7 +80,8 @@ pub fn send_notificaion_via_connection(
                 notification.timeout.into_i32(),
             ),
         )?
-        .body()?;
+        .body()
+        .deserialize()?;
     Ok(reply)
 }
 
@@ -107,7 +108,8 @@ pub fn get_capabilities() -> Result<Vec<String>> {
             "GetCapabilities",
             &(),
         )?
-        .body()?;
+        .body()
+        .deserialize()?;
 
     Ok(info)
 }
@@ -122,17 +124,10 @@ pub fn get_server_information() -> Result<xdg::ServerInformation> {
             "GetServerInformation",
             &(),
         )?
-        .body()?;
+        .body()
+        .deserialize()?;
 
     Ok(info)
-}
-
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
-///
-/// No need to use this, check out `Notification::show_and_wait_for_action(FnOnce(action:&str))`
-pub fn handle_action(id: u32, func: impl ActionResponseHandler) -> Result<()> {
-    let connection = Connection::session()?;
-    wait_for_action_signal(&connection, id, func)
 }
 
 fn wait_for_action_signal(
@@ -155,28 +150,24 @@ fn wait_for_action_signal(
     )?;
 
     for msg in zbus::blocking::MessageIterator::from(connection).flatten() {
-        if let Ok(header) = msg.header() {
-            if let Ok(zbus::MessageType::Signal) = header.message_type() {
-                match header.member() {
-                    Ok(Some(name)) if name == "ActionInvoked" => {
-                        match msg.body::<(u32, String)>() {
-                            Ok((nid, action)) if nid == id => {
-                                handler.call(&ActionResponse::Custom(&action));
-                                break;
-                            }
-                            _ => {}
+        if zbus::MessageType::Signal == msg.header().message_type() {
+            if let Some(name) = msg.header().member() {
+                if name == "ActionInvoked" {
+                    match msg.body().deserialize::<(u32, String)>() {
+                        Ok((nid, action)) if nid == id => {
+                            handler.call(&ActionResponse::Custom(&action));
+                            break;
                         }
+                        _ => {}
                     }
-                    Ok(Some(name)) if name == "NotificationClosed" => {
-                        match msg.body::<(u32, u32)>() {
-                            Ok((nid, reason)) if nid == id => {
-                                handler.call(&ActionResponse::Closed(reason.into()));
-                                break;
-                            }
-                            _ => {}
+                } else if name == "NotificationClosed" {
+                    match msg.body().deserialize::<(u32, u32)>() {
+                        Ok((nid, reason)) if nid == id => {
+                            handler.call(&ActionResponse::Closed(reason.into()));
+                            break;
                         }
+                        _ => {}
                     }
-                    Ok(_) | Err(_) => {}
                 }
             }
         }

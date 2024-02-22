@@ -147,9 +147,6 @@
     clippy::match_same_arms
 )]
 
-#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
-extern crate dbus;
-
 #[cfg(target_os = "macos")]
 extern crate mac_notification_sys;
 
@@ -179,24 +176,14 @@ mod xdg;
 #[cfg(all(feature = "images", unix, not(target_os = "macos")))]
 mod image;
 
-#[cfg(all(feature = "server", feature = "dbus", unix, not(target_os = "macos")))]
-pub mod server;
-
 #[cfg(target_os = "macos")]
 pub use mac_notification_sys::{get_bundle_identifier_or_default, set_application};
 
 #[cfg(target_os = "macos")]
 pub use macos::NotificationHandle;
 
-#[cfg(all(
-    any(feature = "dbus", feature = "zbus"),
-    unix,
-    not(target_os = "macos")
-))]
-pub use crate::xdg::{
-    dbus_stack, get_capabilities, get_server_information, handle_action, ActionResponse,
-    CloseHandler, CloseReason, DbusStack, NotificationHandle,
-};
+#[cfg(all(feature = "zbus", unix, not(target_os = "macos")))]
+pub use crate::xdg::{get_capabilities, get_server_information, CloseReason, NotificationHandle};
 
 #[cfg(all(feature = "server", unix, not(target_os = "macos")))]
 pub use crate::xdg::stop_server;
